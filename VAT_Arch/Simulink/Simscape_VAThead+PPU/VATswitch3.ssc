@@ -1,0 +1,76 @@
+component VATswitch3
+% VAT Head  
+% Third version. Vacuum Arc Thruster head model. 
+%
+% Emulates the ignition and turn-off processes using the load and ablation models by Song Bai et al and Lun.
+% Code based on Mathwork's delayed_switch example.
+
+outputs             %    Declaring the force output
+    T = {0.0, 'N'}; %    Thrust:bottom
+end
+
+nodes
+    p = foundation.electrical.electrical; % +:top
+    n = foundation.electrical.electrical; % -:bottom
+end
+
+parameters
+    R_closed = { 0.01, 'Ohm' };     %   Discharge resistance
+    R_off    = { 200, 'kOhm' };     %   Thin film resistance
+    Vd       = { 20, 'V' };         %   Discharge voltage
+    T_closed = { 200, 'V' };        %   Ignition voltage
+    T_open   = { 0, 'A' };          %   Turn-off current
+    Thrust   = { 24.15, 'mN' };     %   Thrust force
+    InitMode = switching.open;      %   Initial Mode (Keep as default)
+end
+
+variables
+    i       = { 0, 'A' }; % Current
+    v       = { 0, 'V' }; % Voltage
+end
+
+branches
+    i : p.i -> n.i;
+end
+
+%   Validate parameter values
+equations
+            assert( Vd > 0, 'Discharge voltage level must be above zero' );
+            assert( R_closed < R_off, 'Discharge resistance must be significantly lower than the thin film resistance' );
+end
+
+%   Operating modes declaration
+modecharts(ExternalAccess = observe)
+    m1 = modechart
+        modes
+            mode CLOSED                 %%% Discharging, current driven by inductor
+                equations
+                    v == p.v - n.v;     %   Voltage drop declaration
+                    v == Vd;            %   Fixed voltage drop between electrodes while discharging
+                    T == Thrust;        %   Thrust force on
+                end
+            end
+            mode OPEN                   %%% Off, thin film acts like a resistor
+                equations
+                    v == p.v - n.v;     %   Voltage drop declaration
+                    v == i*R_off;       %   Ohm's law
+                    T == 0;             %   Thrust force off
+                end
+            end
+        end
+        
+        %   HYSTERESIS SETUP
+        transitions
+            CLOSED -> OPEN : i < T_open;
+            OPEN -> CLOSED : v > T_closed;
+        end
+        
+        %   INITIAL MODE DECLARATION
+        initial
+            OPEN : InitMode <= 0;
+        end
+    end
+
+end
+
+end
